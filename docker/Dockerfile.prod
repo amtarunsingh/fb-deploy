@@ -1,0 +1,30 @@
+# syntax=docker/dockerfile:1
+
+############################
+# Build stage
+############################
+FROM golang:1.25-bookworm AS build
+WORKDIR /app
+
+ENV CGO_ENABLED=0 GO111MODULE=on
+
+# 1) deps first for better caching
+COPY go.mod go.sum ./
+RUN go mod download
+
+# 2) copy source and build the main at ./cmd/app
+COPY . .
+RUN go build -trimpath -ldflags="-s -w" -o /app/bin/app ./cmd/app
+
+############################
+# Runtime stage (distroless)
+############################
+FROM gcr.io/distroless/static:nonroot
+WORKDIR /app
+
+# only the compiled binary
+COPY --from=build /app/bin/app ./app
+
+EXPOSE 8888
+USER nonroot:nonroot
+ENTRYPOINT ["./app"]
