@@ -2,22 +2,20 @@ name: user-votes
 
 services:
   localstack:
-    image: localstack/localstack
+    image: localstack/localstack:4.9.0
     container_name: localstack
-    ports:
+    expose:
       - "127.0.0.1:4566:4566"
+      - "4510-4559"
     environment:
-      # Keep only whaxt we need; include s3 (cdklocal checks it) and kms for DynamoDB SSE.
-      SERVICES: "cloudformation,iam,sts,dynamodb,sns,sqs,s3,kms"
-      DEBUG: "1"
-      LS_LOG: "info"
-      LS_LOG_REQUESTS: "1"
+      SERVICES: "cloudformation,dynamodb,sns,sqs"
+      DEBUG: "0"
+      LS_LOG: "error"
       AWS_DEFAULT_REGION: "us-east-2"
       AWS_REGION: "us-east-2"
       AWS_ACCESS_KEY_ID: "dummy"
       AWS_SECRET_ACCESS_KEY: "dummy"
-      LOCALSTACK_SSL: "0"
-      SKIP_SSL_CERT_DOWNLOAD: "1"
+      PERSISTENCE: "0"
     healthcheck:
       test: ["CMD-SHELL", "curl -sf -o /dev/null http://localhost:4566/_localstack/health || exit 1"]
       interval: 5s
@@ -36,21 +34,16 @@ services:
     volumes:
       - ..:/work
     environment:
+      AWS_REGION: "us-east-2"
       AWS_ACCESS_KEY_ID: "dummy"
       AWS_SECRET_ACCESS_KEY: "dummy"
-      AWS_REGION: "us-east-2"
+      AWS_EC2_METADATA_DISABLED: "true"
       AWS_DEFAULT_REGION: "us-east-2"
       DEPLOY_SERVICE: "false"
       CDK_DEFAULT_ACCOUNT: "000000000000"
-      CDK_DEFAULT_REGION: "us-east-2"
-      ENV_TYPE: "local"
-
-      # Point all SDKs at LocalStack (IMPORTANT: include S3 + path-style)
       AWS_ENDPOINT_URL: "http://localstack:4566"
-      AWS_ENDPOINT_URL_S3: "http://localstack:4566"
-      AWS_S3_FORCE_PATH_STYLE: "true"
-      AWS_EC2_METADATA_DISABLED: "true"
-
+      DYNAMO_DB_ENDPOINT: "http://localstack:4566"
+      SNS_DB_ENDPOINT: "http://localstack:4566"
       GOTOOLCHAIN: "auto"
     entrypoint: ["/bin/sh","/work/docker/scripts/cdk-local-deploy.sh"]
 
@@ -67,15 +60,8 @@ services:
       AWS_REGION: "us-east-2"
       AWS_ACCESS_KEY_ID: "dummy"
       AWS_SECRET_ACCESS_KEY: "dummy"
-      # LocalStack endpoints
-      AWS_ENDPOINT_URL: "http://localstack:4566"
-      AWS_ENDPOINT_URL_DYNAMODB: "http://localstack:4566"
-      AWS_ENDPOINT_URL_SNS: "http://localstack:4566"
-      AWS_ENDPOINT_URL_SQS: "http://localstack:4566"
       DYNAMO_DB_ENDPOINT: "http://localstack:4566"
       SNS_DB_ENDPOINT: "http://localstack:4566"
-      SQS_ENDPOINT: "http://localstack:4566"
-      AWS_S3_FORCE_PATH_STYLE: "true"
     ports:
       - "8888:8888"
     volumes:
@@ -96,17 +82,10 @@ services:
       AWS_REGION: "us-east-2"
       AWS_ACCESS_KEY_ID: "dummy"
       AWS_SECRET_ACCESS_KEY: "dummy"
-      # LocalStack endpoints
-      AWS_ENDPOINT_URL: "http://localstack:4566"
-      AWS_ENDPOINT_URL_DYNAMODB: "http://localstack:4566"
-      AWS_ENDPOINT_URL_SNS: "http://localstack:4566"
-      AWS_ENDPOINT_URL_SQS: "http://localstack:4566"
       DYNAMO_DB_ENDPOINT: "http://localstack:4566"
       SNS_DB_ENDPOINT: "http://localstack:4566"
-      SQS_ENDPOINT: "http://localstack:4566"
-      AWS_S3_FORCE_PATH_STYLE: "true"
     volumes:
-      - ..:/message_processor
+      - ..:/app
       - go-mod:/go/pkg/mod
       - go-build:/root/.cache/go-build
 

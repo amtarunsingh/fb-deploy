@@ -16,18 +16,29 @@ get_param() {
     --query Parameter.Value --output text --region "$REGION" 2>/dev/null || true
 }
 
-export COUNTERS_TABLE_NAME=$(get_param "$PREFIX/ddb/counters/name")
-export ROMANCES_TABLE_NAME=$(get_param "$PREFIX/ddb/romances/name")
-export DELETE_ROMANCES_TOPIC_ARN=$(get_param "$PREFIX/sns/delete-romances/arn")
-export DELETE_ROMANCES_QUEUE_ARN=$(get_param "$PREFIX/sqs/delete-romances/arn")
-export DELETE_ROMANCES_QUEUE_URL=$(get_param "$PREFIX/sqs/delete-romances/url")
+# Primary stream
+export COUNTERS_TABLE_NAME="$(get_param "$PREFIX/ddb/counters/name")"
+export ROMANCES_TABLE_NAME="$(get_param "$PREFIX/ddb/romances/name")"
+export DELETE_ROMANCES_TOPIC_ARN="$(get_param "$PREFIX/sns/delete-romances/arn")"
+export DELETE_ROMANCES_QUEUE_ARN="$(get_param "$PREFIX/sqs/delete-romances/arn")"
+export DELETE_ROMANCES_QUEUE_URL="$(get_param "$PREFIX/sqs/delete-romances/url")"
+
+# Group stream
+export DELETE_ROMANCES_GROUP_TOPIC_ARN="$(get_param "$PREFIX/sns/delete-romances-group/arn")"
+export DELETE_ROMANCES_GROUP_QUEUE_ARN="$(get_param "$PREFIX/sqs/delete-romances-group/arn")"
+export DELETE_ROMANCES_GROUP_QUEUE_URL="$(get_param "$PREFIX/sqs/delete-romances-group/url")"
 
 # Friendly log
 cat <<EOF
 Loaded env from SSM (missing values left empty):
   COUNTERS_TABLE_NAME=$COUNTERS_TABLE_NAME
   ROMANCES_TABLE_NAME=$ROMANCES_TABLE_NAME
+
   DELETE_ROMANCES_TOPIC_ARN=$DELETE_ROMANCES_TOPIC_ARN
   DELETE_ROMANCES_QUEUE_ARN=$DELETE_ROMANCES_QUEUE_ARN
   DELETE_ROMANCES_QUEUE_URL=$DELETE_ROMANCES_QUEUE_URL
+
+  DELETE_ROMANCES_GROUP_TOPIC_ARN=$DELETE_ROMANCES_GROUP_TOPIC_ARN
+  DELETE_ROMANCES_GROUP_QUEUE_ARN=$DELETE_ROMANCES_GROUP_QUEUE_ARN
+  DELETE_ROMANCES_GROUP_QUEUE_URL=$DELETE_ROMANCES_GROUP_QUEUE_URL
 EOF

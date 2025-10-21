@@ -27,6 +27,7 @@ type Config struct {
 	Aws      struct {
 		Region                string `env:"AWS_REGION" envDefault:"us-east-2"`
 		AccessKeyId           string `env:"AWS_ACCESS_KEY_ID" envDefault:"dummy"`
+		AccountId             string `env:"AWS_ACCOUNT_ID" envDefault:"000000000000"`
 		SecretAccessKey       string `env:"AWS_SECRET_ACCESS_KEY" envDefault:"dummy"`
 		DynamoDbLocalEndpoint string `env:"DYNAMO_DB_ENDPOINT"`
 		SnsLocalEndpoint      string `env:"SNS_DB_ENDPOINT"`

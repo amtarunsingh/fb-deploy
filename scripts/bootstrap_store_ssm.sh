@@ -36,20 +36,46 @@ cf_output() {
     --region "$REGION"
 }
 
-# 1) Read outputs from DataStack
-COUNTERS_NAME=$(cf_output "$STACK_DATA" CountersTableName || true)
-ROMANCES_NAME=$(cf_output "$STACK_DATA" RomancesTableName || true)
-TOPIC_ARN=$(cf_output "$STACK_DATA" DeleteRomancesTopicArn || true)
-QUEUE_ARN=$(cf_output "$STACK_DATA" DeleteRomancesQueueArn || true)
-QUEUE_URL=$(cf_output "$STACK_DATA" DeleteRomancesQueueUrl || true)
+# Try multiple keys (backward-compatible); return first non-empty
+cf_output_any() {
+  local stack="$1"; shift
+  local val
+  for key in "$@"; do
+    val="$(cf_output "$stack" "$key" 2>/dev/null || true)"
+    if [[ -n "$val" && "$val" != "None" ]]; then
+      echo "$val"
+      return 0
+    fi
+  done
+  echo ""
+}
+
+# 1) Read outputs from DataStack (primary stream)
+COUNTERS_NAME="$(cf_output_any "$STACK_DATA" CountersTableName)"
+ROMANCES_NAME="$(cf_output_any "$STACK_DATA" RomancesTableName)"
+
+TOPIC_ARN="$(cf_output_any "$STACK_DATA" DeleteRomancesFifoTopicArn DeleteRomancesTopicArn)"
+QUEUE_ARN="$(cf_output_any "$STACK_DATA" DeleteRomancesFifoQueueArn DeleteRomancesQueueArn)"
+QUEUE_URL="$(cf_output_any "$STACK_DATA" DeleteRomancesFifoQueueUrl DeleteRomancesQueueUrl)"
+
+# 1b) Read outputs from DataStack (group stream)
+GROUP_TOPIC_ARN="$(cf_output_any "$STACK_DATA" DeleteRomancesGroupFifoTopicArn DeleteRomancesGroupTopicArn)"
+GROUP_QUEUE_ARN="$(cf_output_any "$STACK_DATA" DeleteRomancesGroupFifoQueueArn DeleteRomancesGroupQueueArn)"
+GROUP_QUEUE_URL="$(cf_output_any "$STACK_DATA" DeleteRomancesGroupFifoQueueUrl DeleteRomancesGroupQueueUrl)"
 
 # 2) Store them under a neat SSM prefix
 PREFIX="/${APP}/${ENV}"
 
-[[ -n "$COUNTERS_NAME" ]] && put_param "$PREFIX/ddb/counters/name" "$COUNTERS_NAME"
-[[ -n "$ROMANCES_NAME" ]]   && put_param "$PREFIX/ddb/romances/name" "$ROMANCES_NAME"
-[[ -n "$TOPIC_ARN" ]]       && put_param "$PREFIX/sns/delete-romances/arn" "$TOPIC_ARN"
-[[ -n "$QUEUE_ARN" ]]       && put_param "$PREFIX/sqs/delete-romances/arn" "$QUEUE_ARN"
-[[ -n "$QUEUE_URL" ]]       && put_param "$PREFIX/sqs/delete-romances/url" "$QUEUE_URL"
+[[ -n "$COUNTERS_NAME" ]]      && put_param "$PREFIX/ddb/counters/name" "$COUNTERS_NAME"
+[[ -n "$ROMANCES_NAME" ]]      && put_param "$PREFIX/ddb/romances/name" "$ROMANCES_NAME"
+
+[[ -n "$TOPIC_ARN" ]]          && put_param "$PREFIX/sns/delete-romances/arn" "$TOPIC_ARN"
+[[ -n "$QUEUE_ARN" ]]          && put_param "$PREFIX/sqs/delete-romances/arn" "$QUEUE_ARN"
+[[ -n "$QUEUE_URL" ]]          && put_param "$PREFIX/sqs/delete-romances/url" "$QUEUE_URL"
+
+# Group stream
+[[ -n "$GROUP_TOPIC_ARN" ]]    && put_param "$PREFIX/sns/delete-romances-group/arn" "$GROUP_TOPIC_ARN"
+[[ -n "$GROUP_QUEUE_ARN" ]]    && put_param "$PREFIX/sqs/delete-romances-group/arn" "$GROUP_QUEUE_ARN"
+[[ -n "$GROUP_QUEUE_URL" ]]    && put_param "$PREFIX/sqs/delete-romances-group/url" "$GROUP_QUEUE_URL"
 
 echo "Done. Parameters saved under prefix: $PREFIX"

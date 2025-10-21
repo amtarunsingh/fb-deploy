@@ -2,14 +2,16 @@ package testcontainer
 
 import (
 	"context"
+	"os"
+	"sync"
+	"time"
+
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/testcontainers/testcontainers-go"
 	dynamodbTestcontainer "github.com/testcontainers/testcontainers-go/modules/dynamodb"
 	"github.com/testcontainers/testcontainers-go/wait"
-	"os"
-	"sync"
-	"time"
 )
 
 type DynamoDbLocal struct {
@@ -44,11 +46,20 @@ func SetupDynamoDbLocal(ctx context.Context, region string) (*DynamoDbLocal, err
 			return
 		}
 
+		// cfg, err := awsConfig.LoadDefaultConfig(
+		// 	ctx,
+		// 	awsConfig.WithRegion(region),
+		// 	awsConfig.WithBaseEndpoint(endpoint),
+		// )
 		cfg, err := awsConfig.LoadDefaultConfig(
 			ctx,
 			awsConfig.WithRegion(region),
 			awsConfig.WithBaseEndpoint(endpoint),
+			awsConfig.WithCredentialsProvider(
+				credentials.NewStaticCredentialsProvider("test", "test", ""),
+			),
 		)
+
 		if err != nil {
 			initErr = err
 			return

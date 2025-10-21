@@ -14,8 +14,6 @@ env:
   ECR_REPOSITORY: user-votes-api   # <- your ECR repo name
   CDK_APP_DIR: infra               # <- where your CDK Go app lives
   SERVICE_NAME: user-votes-api     # <- ECS service name
-  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
 jobs:
   build-push-deploy:
@@ -37,95 +35,95 @@ jobs:
       - name: Go test
         run: go test ./... -count=1
 
-      # --- OIDC → AWS role ---
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}   # e.g. arn:aws:iam::<acc>:role/GitHubActionsCDKRole
-          aws-region: ${{ env.AWS_REGION }}
+      # # --- OIDC → AWS role ---
+      # - name: Configure AWS credentials
+      #   uses: aws-actions/configure-aws-credentials@v4
+      #   with:
+      #     role-to-assume: ${{ secrets.AWS_ROLE_ARN }}   # e.g. arn:aws:iam::<acc>:role/GitHubActionsCDKRole
+      #     aws-region: ${{ env.AWS_REGION }}
 
-      - name: WhoAmI (STS)
-        run: aws sts get-caller-identity
+      # - name: WhoAmI (STS)
+      #   run: aws sts get-caller-identity
 
-      # --- Image tag & ensure ECR repo ---
-      - name: Short SHA
-        id: vars
-        run: echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+      # # --- Image tag & ensure ECR repo ---
+      # - name: Short SHA
+      #   id: vars
+      #   run: echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
-      - name: Ensure ECR repository exists
-        run: |
-          aws ecr describe-repositories --repository-names "${ECR_REPOSITORY}" \
-          || aws ecr create-repository --repository-name "${ECR_REPOSITORY}"
+      # - name: Ensure ECR repository exists
+      #   run: |
+      #     aws ecr describe-repositories --repository-names "${ECR_REPOSITORY}" \
+      #     || aws ecr create-repository --repository-name "${ECR_REPOSITORY}"
 
-      # --- Build & Push container image ---
-      - name: Login to Amazon ECR
-        uses: aws-actions/amazon-ecr-login@v2
+      # # --- Build & Push container image ---
+      # - name: Login to Amazon ECR
+      #   uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build & Push image to ECR
-        env:
-          IMAGE_TAG: ${{ steps.vars.outputs.sha_short }}
-        run: |
-          set -euo pipefail
-          ECR_URI="$(aws ecr describe-repositories \
-            --repository-names "${ECR_REPOSITORY}" \
-            --query 'repositories[0].repositoryUri' --output text)"
-          echo "ECR_URI=$ECR_URI"
+      # - name: Build & Push image to ECR
+      #   env:
+      #     IMAGE_TAG: ${{ steps.vars.outputs.sha_short }}
+      #   run: |
+      #     set -euo pipefail
+      #     ECR_URI="$(aws ecr describe-repositories \
+      #       --repository-names "${ECR_REPOSITORY}" \
+      #       --query 'repositories[0].repositoryUri' --output text)"
+      #     echo "ECR_URI=$ECR_URI"
 
-          docker build -f "${DOCKERFILE_PATH}" -t "$ECR_URI:$IMAGE_TAG" .
-          docker push "$ECR_URI:$IMAGE_TAG"
+      #     docker build -f "${DOCKERFILE_PATH}" -t "$ECR_URI:$IMAGE_TAG" .
+      #     docker push "$ECR_URI:$IMAGE_TAG"
 
-          docker tag "$ECR_URI:$IMAGE_TAG" "$ECR_URI:latest"
-          docker push "$ECR_URI:latest"
+      #     docker tag "$ECR_URI:$IMAGE_TAG" "$ECR_URI:latest"
+      #     docker push "$ECR_URI:latest"
 
-      # --- CDK CLI ---
-      - name: Setup Node (CDK CLI)
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
+      # # --- CDK CLI ---
+      # - name: Setup Node (CDK CLI)
+      #   uses: actions/setup-node@v4
+      #   with:
+      #     node-version: "20"
 
-      - name: Install CDK CLI
-        run: npm i -g aws-cdk
+      # - name: Install CDK CLI
+      #   run: npm i -g aws-cdk
 
-      # --- Load infra identifiers from SSM (if present) ---
-      - name: Load env from SSM
-        working-directory: ${{ env.CDK_APP_DIR }}
-        env:
-          APP: ${{ env.APP }}
-          ENV: ${{ env.ENV }}
-          AWS_REGION: ${{ env.AWS_REGION }}
-        run: |
-          chmod +x ../scripts/load_env_from_ssm.sh || true
-          ../scripts/load_env_from_ssm.sh || true
+      # # # --- Load infra identifiers from SSM (if present) ---
+      # # - name: Load env from SSM
+      # #   working-directory: ${{ env.CDK_APP_DIR }}
+      # #   env:
+      # #     APP: ${{ env.APP }}
+      # #     ENV: ${{ env.ENV }}
+      # #     AWS_REGION: ${{ env.AWS_REGION }}
+      # #   run: |
+      # #     chmod +x ../scripts/load_env_from_ssm.sh || true
+      # #     ../scripts/load_env_from_ssm.sh || true
 
-      # --- CDK bootstrap (idempotent) ---
-      - name: CDK bootstrap
-        working-directory: ${{ env.CDK_APP_DIR }}
-        run: |
-          ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
-          cdk bootstrap "aws://$ACCOUNT_ID/${AWS_REGION}"
+      # # --- CDK bootstrap (idempotent) ---
+      # - name: CDK bootstrap
+      #   working-directory: ${{ env.CDK_APP_DIR }}
+      #   run: |
+      #     ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+      #     cdk bootstrap "aws://$ACCOUNT_ID/${AWS_REGION}"
 
-      # --- CDK deploy (create first time; import thereafter) ---
-      - name: CDK deploy
-        working-directory: ${{ env.CDK_APP_DIR }}
-        env:
-          CDK_DEFAULT_REGION: ${{ env.AWS_REGION }}
-          ECR_REPO_NAME: ${{ env.ECR_REPOSITORY }}
-          IMAGE_TAG: ${{ steps.vars.outputs.sha_short }}
-          SERVICE_NAME: ${{ env.SERVICE_NAME }}
-          # The load_env_from_ssm.sh step above exports:
-          #   COUNTERS_TABLE_NAME, ROMANCES_TABLE_NAME,
-          #   DELETE_ROMANCES_TOPIC_ARN, DELETE_ROMANCES_QUEUE_ARN, DELETE_ROMANCES_QUEUE_URL
-        run: |
-          cdk synth
-          cdk deploy --all --require-approval never
+      # # --- CDK deploy (create first time; import thereafter) ---
+      # - name: CDK deploy
+      #   working-directory: ${{ env.CDK_APP_DIR }}
+      #   env:
+      #     CDK_DEFAULT_REGION: ${{ env.AWS_REGION }}
+      #     ECR_REPO_NAME: ${{ env.ECR_REPOSITORY }}
+      #     IMAGE_TAG: ${{ steps.vars.outputs.sha_short }}
+      #     SERVICE_NAME: ${{ env.SERVICE_NAME }}
+      #     # The load_env_from_ssm.sh step above exports:
+      #     #   COUNTERS_TABLE_NAME, ROMANCES_TABLE_NAME,
+      #     #   DELETE_ROMANCES_TOPIC_ARN, DELETE_ROMANCES_QUEUE_ARN, DELETE_ROMANCES_QUEUE_URL
+      #   run: |
+      #     cdk synth
+      #     cdk deploy --all --require-approval never
 
-      # --- Save CFN outputs back to SSM for future runs ---
-      - name: Save outputs to SSM
-        working-directory: ${{ env.CDK_APP_DIR }}
-        env:
-          APP: ${{ env.APP }}
-          ENV: ${{ env.ENV }}
-          AWS_REGION: ${{ env.AWS_REGION }}
-        run: |
-          chmod +x ../scripts/bootstrap_store_ssm.sh
-          ../scripts/bootstrap_store_ssm.sh
+      # # # --- Save CFN outputs back to SSM for future runs ---
+      # # - name: Save outputs to SSM
+      # #   working-directory: ${{ env.CDK_APP_DIR }}
+      # #   env:
+      # #     APP: ${{ env.APP }}
+      # #     ENV: ${{ env.ENV }}
+      # #     AWS_REGION: ${{ env.AWS_REGION }}
+      # #   run: |
+      # #     chmod +x ../scripts/bootstrap_store_ssm.sh
+      # #     ../scripts/bootstrap_store_ssm.sh
